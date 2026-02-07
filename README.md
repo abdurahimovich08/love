@@ -41,3 +41,41 @@ Schema uchun: `docs/supabase-schema.sql`
 - share link chiqarish
 - kampaniya sessionlarini ko'rish
 - session summary va event loglarni ko'rish
+
+## Telegram Bot
+
+Bot orqali:
+
+- campaign yaratish (ism/familiya/maxsus personaj/campaign nomi)
+- link berish
+- natijalarni ko'rish
+
+### Bot environment
+
+Bot uchun quyidagi env lar kerak:
+
+```env
+TELEGRAM_BOT_TOKEN=...
+WEB_APP_URL=https://your-app.vercel.app
+
+# Supabase (biri bo'lsa yetadi)
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+# yoki
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+### Bot run
+
+```bash
+npm run bot
+```
+
+Bot buyruqlari:
+
+- `/start`
+- `/create`
+- `/campaigns`
+- `/results`
+- `/cancel`

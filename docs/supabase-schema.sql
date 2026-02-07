@@ -9,6 +9,8 @@ create table if not exists public.love_campaigns (
   slug text not null unique,
   title text not null,
   owner_name text not null,
+  owner_chat_id bigint,
+  owner_username text,
   config jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -16,6 +18,8 @@ create table if not exists public.love_campaigns (
 alter table public.love_campaigns add column if not exists slug text;
 alter table public.love_campaigns add column if not exists title text;
 alter table public.love_campaigns add column if not exists owner_name text;
+alter table public.love_campaigns add column if not exists owner_chat_id bigint;
+alter table public.love_campaigns add column if not exists owner_username text;
 alter table public.love_campaigns add column if not exists config jsonb not null default '{}'::jsonb;
 alter table public.love_campaigns add column if not exists created_at timestamptz not null default now();
 
@@ -53,6 +57,7 @@ alter table public.love_session_events add column if not exists created_at times
 
 create index if not exists love_sessions_campaign_slug_idx on public.love_sessions(campaign_slug);
 create index if not exists love_session_events_session_id_idx on public.love_session_events(session_id);
+create index if not exists love_campaigns_owner_chat_id_idx on public.love_campaigns(owner_chat_id);
 
 alter table public.love_campaigns enable row level security;
 alter table public.love_sessions enable row level security;
