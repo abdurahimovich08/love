@@ -29,6 +29,7 @@ const PORT = Number(process.env.PORT || 3000);
 const WEBHOOK_BASE_URL = (process.env.BOT_WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '');
 const WEBHOOK_PATH = process.env.BOT_WEBHOOK_PATH || `/telegram/webhook/${BOT_TOKEN}`;
 let BOT_USERNAME = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
+const MAX_SPECIAL_IMAGE_BYTES = Number(process.env.MAX_SPECIAL_IMAGE_BYTES || 1200000);
 
 if (!BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN kiritilmagan.');
@@ -97,6 +98,34 @@ const sanitizeImageSource = (value) => {
   return '';
 };
 
+const pickUploadPhoto = (photos) => {
+  const ordered = [...photos].sort((a, b) => (b.file_size || 0) - (a.file_size || 0));
+  return (
+    ordered.find((photo) => typeof photo.file_size !== 'number' || photo.file_size <= MAX_SPECIAL_IMAGE_BYTES) || null
+  );
+};
+
+const loadTelegramPhotoAsDataUrl = async (fileId) => {
+  const file = await bot.telegram.getFile(fileId);
+  if (!file?.file_path) {
+    throw new Error('Rasm fayli topilmadi.');
+  }
+
+  const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error('Rasmni yuklab bo\'lmadi.');
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.byteLength > MAX_SPECIAL_IMAGE_BYTES) {
+    throw new Error(`Rasm juda katta. ${Math.floor(MAX_SPECIAL_IMAGE_BYTES / 1024)}KB dan kichik rasm yuboring.`);
+  }
+
+  const contentType = response.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+  return `data:${contentType};base64,${buffer.toString('base64')}`;
+};
+
 const getStartPayload = (ctx) => {
   if (typeof ctx.startPayload === 'string' && ctx.startPayload.trim()) {
     return ctx.startPayload.trim();
@@ -149,6 +178,44 @@ const startCreatorFlow = async (ctx) => {
   });
 
   await ctx.reply("1/5. Partner ismini kiriting (masalan: E'zoza):");
+};
+
+const finishCreatorFlow = async (ctx, state) => {
+  const chatId = ctx.chat.id;
+  const defaultTitle = `Sevgini ulashing - ${state.data.partnerFirstName}`;
+  const campaignTitle = (state.data.campaignTitle || '').trim() || defaultTitle;
+
+  const config = {
+    partnerFirstName: state.data.partnerFirstName,
+    partnerLastName: state.data.partnerLastName,
+    myName: state.data.ownerName,
+    specialContestantName: state.data.specialContestantName,
+    specialContestantImage: state.data.specialContestantImage || '',
+    campaignTitle,
+  };
+
+  const created = await createCampaign({
+    title: campaignTitle,
+    ownerName: state.data.ownerName,
+    ownerChatId: state.data.ownerChatId,
+    ownerUsername: state.data.ownerUsername,
+    config,
+  });
+
+  resetCreator(chatId);
+
+  const links = buildShareLinks(created.slug);
+  await ctx.reply(
+    [
+      '\u2705 Ulashish yaratildi!',
+      `\u{1F496} Nomi: ${created.title}`,
+      `\u{1F194} Slug: ${created.slug}`,
+      '',
+      `\u{1F916} Telegram havola: ${links.botStartUrl || '(bot username aniqlanmadi)'}`,
+      `\u{1F310} Web havola: ${links.campaignUrl}`,
+    ].join('\n'),
+    campaignCreatedKeyboard(links),
+  );
 };
 
 const formatSummary = (detail) => {
@@ -402,55 +469,102 @@ const setupHandlers = () => {
 
     if (state.step === 'special_name') {
       state.data.specialContestantName = text === '-' ? state.data.partnerFirstName : text;
-      state.step = 'special_image_url';
-      creatorState.set(chatId, state);
-      await ctx.reply('4/5. Maxsus personaj rasmi linkini kiriting (https://... yoki /battle-images/...). O\'tkazib yuborish uchun "-" yozing:');
-      return;
-    }
-
-    if (state.step === 'special_image_url') {
-      state.data.specialContestantImage = sanitizeImageSource(text);
       state.step = 'campaign_title';
       creatorState.set(chatId, state);
-      await ctx.reply('5/5. Ulashish nomini kiriting (masalan: Sevgini ulashing \u{1F496}). "-" yozsangiz avtomatik nom beriladi:');
+      await ctx.reply('4/5. Ulashish nomini kiriting (masalan: Sevgini ulashing \u{1F496}). "-" yozsangiz avtomatik nom beriladi:');
       return;
     }
 
     if (state.step === 'campaign_title') {
       const defaultTitle = `Sevgini ulashing - ${state.data.partnerFirstName}`;
       state.data.campaignTitle = text === '-' ? defaultTitle : text;
-
-      const config = {
-        partnerFirstName: state.data.partnerFirstName,
-        partnerLastName: state.data.partnerLastName,
-        myName: state.data.ownerName,
-        specialContestantName: state.data.specialContestantName,
-        specialContestantImage: state.data.specialContestantImage || '',
-        campaignTitle: state.data.campaignTitle,
-      };
-
-      const created = await createCampaign({
-        title: state.data.campaignTitle,
-        ownerName: state.data.ownerName,
-        ownerChatId: state.data.ownerChatId,
-        ownerUsername: state.data.ownerUsername,
-        config,
-      });
-
-      resetCreator(chatId);
-
-      const links = buildShareLinks(created.slug);
+      state.step = 'special_image_upload';
+      creatorState.set(chatId, state);
       await ctx.reply(
-        [
-          '\u2705 Ulashish yaratildi!',
-          `\u{1F496} Nomi: ${created.title}`,
-          `\u{1F194} Slug: ${created.slug}`,
-          '',
-          `\u{1F916} Telegram havola: ${links.botStartUrl || '(bot username aniqlanmadi)'}`,
-          `\u{1F310} Web havola: ${links.campaignUrl}`,
-        ].join('\n'),
-        campaignCreatedKeyboard(links),
+        '5/5. Endi sevgilingiz rasmini yuboring (photo). Rasm qo\'shmaslik uchun "-" yozing, link kiritmoqchi bo\'lsangiz ham bo\'ladi.',
       );
+      return;
+    }
+
+    if (state.step === 'special_image_upload') {
+      if (text === '-') {
+        state.data.specialContestantImage = '';
+        creatorState.set(chatId, state);
+        await finishCreatorFlow(ctx, state);
+        return;
+      }
+
+      const normalized = sanitizeImageSource(text);
+      if (normalized) {
+        state.data.specialContestantImage = normalized;
+        creatorState.set(chatId, state);
+        await finishCreatorFlow(ctx, state);
+        return;
+      }
+
+      await ctx.reply('Iltimos photo yuboring. Yoki rasm qo\'shmaslik uchun "-" yozing.');
+    }
+  });
+
+  bot.on('photo', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const state = creatorState.get(chatId);
+    if (!state || state.step !== 'special_image_upload') {
+      return;
+    }
+
+    const photos = ctx.message.photo || [];
+    if (!photos.length) {
+      await ctx.reply('Rasm topilmadi. Iltimos, qayta yuboring.');
+      return;
+    }
+
+    const pickedPhoto = pickUploadPhoto(photos);
+    if (!pickedPhoto) {
+      await ctx.reply(`Rasm juda katta. ${Math.floor(MAX_SPECIAL_IMAGE_BYTES / 1024)}KB dan kichik rasm yuboring.`);
+      return;
+    }
+
+    try {
+      const dataUrl = await loadTelegramPhotoAsDataUrl(pickedPhoto.file_id);
+      state.data.specialContestantImage = dataUrl;
+      creatorState.set(chatId, state);
+      await ctx.reply('\u{1F4F8} Rasm qabul qilindi. Ulashishni yakunlayapman...');
+      await finishCreatorFlow(ctx, state);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Rasmni qayta yuborib ko\'ring.';
+      await ctx.reply(message);
+    }
+  });
+
+  bot.on('document', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const state = creatorState.get(chatId);
+    if (!state || state.step !== 'special_image_upload') {
+      return;
+    }
+
+    const document = ctx.message.document;
+    const mimeType = document?.mime_type || '';
+    if (!mimeType.startsWith('image/')) {
+      await ctx.reply('Faqat rasm fayl yuboring. Yoki "-" deb yozib rasmni o\'tkazib yuboring.');
+      return;
+    }
+
+    if (typeof document.file_size === 'number' && document.file_size > MAX_SPECIAL_IMAGE_BYTES) {
+      await ctx.reply(`Rasm juda katta. ${Math.floor(MAX_SPECIAL_IMAGE_BYTES / 1024)}KB dan kichik rasm yuboring.`);
+      return;
+    }
+
+    try {
+      const dataUrl = await loadTelegramPhotoAsDataUrl(document.file_id);
+      state.data.specialContestantImage = dataUrl;
+      creatorState.set(chatId, state);
+      await ctx.reply('\u{1F4F8} Rasm qabul qilindi. Ulashishni yakunlayapman...');
+      await finishCreatorFlow(ctx, state);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Rasmni qayta yuborib ko\'ring.';
+      await ctx.reply(message);
     }
   });
 

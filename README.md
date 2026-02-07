@@ -47,6 +47,7 @@ Schema uchun: `docs/supabase-schema.sql`
 Bot orqali:
 
 - campaign yaratish (ism/familiya/maxsus personaj/campaign nomi)
+- maxsus personaj rasmi yuborish (photo/file) va battle ga ulash
 - link berish
 - natijalarni ko'rish
 
@@ -58,6 +59,7 @@ Bot uchun quyidagi env lar kerak:
 TELEGRAM_BOT_TOKEN=...
 WEB_APP_URL=https://your-app.vercel.app
 BOT_MODE=polling
+MAX_SPECIAL_IMAGE_BYTES=1200000
 
 # Supabase (biri bo'lsa yetadi)
 SUPABASE_URL=...
