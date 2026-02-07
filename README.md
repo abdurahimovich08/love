@@ -57,6 +57,7 @@ Bot uchun quyidagi env lar kerak:
 ```env
 TELEGRAM_BOT_TOKEN=...
 WEB_APP_URL=https://your-app.vercel.app
+BOT_MODE=polling
 
 # Supabase (biri bo'lsa yetadi)
 SUPABASE_URL=...
@@ -66,11 +67,28 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
 
-### Bot run
+### Local run (polling)
 
 ```bash
 npm run bot
 ```
+
+### Render deploy (webhook)
+
+1. Telegram bot kodini ishlatadigan servisni Render'da yarating (repo orqali).
+2. Render service env lariga quyidagilarni kiriting:
+
+```env
+TELEGRAM_BOT_TOKEN=...
+WEB_APP_URL=https://your-app.vercel.app
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+BOT_MODE=webhook
+```
+
+3. `render.yaml` qo'shilgan, shuning uchun Blueprint bilan ham ko'tarish mumkin.
+4. Render `RENDER_EXTERNAL_URL` env ni avtomatik beradi, bot webhook manzilini o'zi sozlaydi.
+5. Botni ochib `/start` bosing, keyin `/create` bilan campaign yarating.
 
 Bot buyruqlari:
 
