@@ -71,6 +71,32 @@ const buildShareLinks = (slug) => ({
   botStartUrl: buildBotStartLink(slug),
 });
 
+const sanitizeImageSource = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '-') {
+    return '';
+  }
+
+  if (trimmed.startsWith('/') || trimmed.startsWith('data:image/')) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return trimmed;
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+};
+
 const getStartPayload = (ctx) => {
   if (typeof ctx.startPayload === 'string' && ctx.startPayload.trim()) {
     return ctx.startPayload.trim();
@@ -122,7 +148,7 @@ const startCreatorFlow = async (ctx) => {
     },
   });
 
-  await ctx.reply("1/4. Partner ismini kiriting (masalan: E'zoza):");
+  await ctx.reply("1/5. Partner ismini kiriting (masalan: E'zoza):");
 };
 
 const formatSummary = (detail) => {
@@ -210,7 +236,7 @@ const setupHandlers = () => {
         '',
         'Buyruqlar:',
         '/start - asosiy menyu',
-        '/create - sevgini ulashishni yaratish',
+        '/create - sevgini ulashishni yaratish (maxsus rasm bilan)',
         '/campaigns - ulashishlarim',
         '/results - natijalarni ko\'rish',
         '/cancel - joriy jarayonni bekor qilish',
@@ -362,7 +388,7 @@ const setupHandlers = () => {
       state.data.partnerFirstName = text;
       state.step = 'partner_last_name';
       creatorState.set(chatId, state);
-      await ctx.reply('2/4. Partner familiyasini kiriting:');
+      await ctx.reply('2/5. Partner familiyasini kiriting:');
       return;
     }
 
@@ -370,15 +396,23 @@ const setupHandlers = () => {
       state.data.partnerLastName = text;
       state.step = 'special_name';
       creatorState.set(chatId, state);
-      await ctx.reply('3/4. Maxsus personaj nomi (bo\'sh qoldirmoqchi bo\'lsangiz "-") :');
+      await ctx.reply('3/5. Maxsus personaj nomi (bo\'sh qoldirmoqchi bo\'lsangiz "-") :');
       return;
     }
 
     if (state.step === 'special_name') {
       state.data.specialContestantName = text === '-' ? state.data.partnerFirstName : text;
+      state.step = 'special_image_url';
+      creatorState.set(chatId, state);
+      await ctx.reply('4/5. Maxsus personaj rasmi linkini kiriting (https://... yoki /battle-images/...). O\'tkazib yuborish uchun "-" yozing:');
+      return;
+    }
+
+    if (state.step === 'special_image_url') {
+      state.data.specialContestantImage = sanitizeImageSource(text);
       state.step = 'campaign_title';
       creatorState.set(chatId, state);
-      await ctx.reply('4/4. Ulashish nomini kiriting (masalan: Sevgini ulashing \u{1F496}). "-" yozsangiz avtomatik nom beriladi:');
+      await ctx.reply('5/5. Ulashish nomini kiriting (masalan: Sevgini ulashing \u{1F496}). "-" yozsangiz avtomatik nom beriladi:');
       return;
     }
 
@@ -391,6 +425,7 @@ const setupHandlers = () => {
         partnerLastName: state.data.partnerLastName,
         myName: state.data.ownerName,
         specialContestantName: state.data.specialContestantName,
+        specialContestantImage: state.data.specialContestantImage || '',
         campaignTitle: state.data.campaignTitle,
       };
 
@@ -428,7 +463,7 @@ const setupHandlers = () => {
 const setupBotCommands = async () => {
   await bot.telegram.setMyCommands([
     { command: 'start', description: 'Bot tavsifi va menyu' },
-    { command: 'create', description: 'Sevgini ulashish yaratish' },
+    { command: 'create', description: 'Sevgini ulashish + maxsus rasm' },
     { command: 'campaigns', description: 'Ulashishlarim' },
     { command: 'results', description: 'Natijalarni ko\'rish' },
     { command: 'cancel', description: 'Joriy jarayonni bekor qilish' },

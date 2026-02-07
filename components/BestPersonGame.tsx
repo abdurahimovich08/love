@@ -162,10 +162,11 @@ const playCinematicBlast = () => {
 
 interface BattleImageProps {
   imageNumber: number;
+  imageSrc?: string;
   alt: string;
 }
 
-const BattleImage: React.FC<BattleImageProps> = ({ imageNumber, alt }) => {
+const BattleImage: React.FC<BattleImageProps> = ({ imageNumber, imageSrc, alt }) => {
   const extensions = useMemo(() => {
     const cached = resolvedImageExtensions.get(imageNumber);
     if (!cached) {
@@ -183,9 +184,9 @@ const BattleImage: React.FC<BattleImageProps> = ({ imageNumber, alt }) => {
     setExtIndex(0);
     setIsBroken(false);
     setFitMode('cover');
-  }, [imageNumber]);
+  }, [imageNumber, imageSrc]);
 
-  const src = `/battle-images/${imageNumber}.${extensions[extIndex]}`;
+  const src = imageSrc || `/battle-images/${imageNumber}.${extensions[extIndex]}`;
 
   if (isBroken) {
     return (
@@ -202,7 +203,9 @@ const BattleImage: React.FC<BattleImageProps> = ({ imageNumber, alt }) => {
       loading="lazy"
       className={`w-full h-full transition-transform duration-300 ${fitMode === 'cover' ? 'object-cover' : 'object-contain p-2'}`}
       onLoad={(event) => {
-        resolvedImageExtensions.set(imageNumber, extensions[extIndex]);
+        if (!imageSrc) {
+          resolvedImageExtensions.set(imageNumber, extensions[extIndex]);
+        }
         const { naturalWidth, naturalHeight } = event.currentTarget;
 
         if (naturalWidth < 320 || naturalHeight < 320) {
@@ -210,6 +213,10 @@ const BattleImage: React.FC<BattleImageProps> = ({ imageNumber, alt }) => {
         }
       }}
       onError={() => {
+        if (imageSrc) {
+          setIsBroken(true);
+          return;
+        }
         setExtIndex((currentIndex) => {
           if (currentIndex >= extensions.length - 1) {
             setIsBroken(true);
@@ -245,12 +252,13 @@ const ProfileRow: React.FC<ProfileRowProps> = ({ label, items, chipClassName }) 
 
 interface DuelCardProps {
   contestant: BattleContestant;
+  customImageSrc?: string;
   onSelect: (id: string) => void;
   selectedId: string | null;
   disabled: boolean;
 }
 
-const DuelCard: React.FC<DuelCardProps> = ({ contestant, onSelect, selectedId, disabled }) => {
+const DuelCard: React.FC<DuelCardProps> = ({ contestant, customImageSrc, onSelect, selectedId, disabled }) => {
   const isSelected = selectedId === contestant.id;
 
   return (
@@ -267,7 +275,7 @@ const DuelCard: React.FC<DuelCardProps> = ({ contestant, onSelect, selectedId, d
       }`}
     >
       <div className="relative aspect-[4/5] bg-gradient-to-br from-love-100 via-white to-warm-100">
-        <BattleImage imageNumber={contestant.imageNumber} alt={contestant.name} />
+        <BattleImage imageNumber={contestant.imageNumber} imageSrc={customImageSrc} alt={contestant.name} />
         <div className="absolute top-2 left-2 px-2 py-1 rounded-full text-[10px] font-semibold bg-white/90 text-love-700 border border-love-100">
           {GROUP_LABELS[contestant.group]}
         </div>
@@ -896,6 +904,7 @@ const BestPersonGame: React.FC<BestPersonGameProps> = ({ onComplete }) => {
   const [duelHistory, setDuelHistory] = useState<BattleDuelLog[]>([]);
 
   const specialName = config.specialContestantName || config.partnerFirstName;
+  const specialImageSrc = config.specialContestantImage?.trim() || '';
   const contestants = useMemo(
     () =>
       BATTLE_CONTESTANTS.map((contestant) =>
@@ -1292,7 +1301,13 @@ const BestPersonGame: React.FC<BestPersonGameProps> = ({ onComplete }) => {
         {finalSingleChoice ? (
           <EliminatedContestantCard name={lastRejectedName ?? leftContestant.name} />
         ) : (
-          <DuelCard contestant={leftContestant} onSelect={handleSelect} selectedId={selectedId} disabled={isLocked} />
+          <DuelCard
+            contestant={leftContestant}
+            customImageSrc={leftContestant.id === EZOZA_ID ? specialImageSrc : undefined}
+            onSelect={handleSelect}
+            selectedId={selectedId}
+            disabled={isLocked}
+          />
         )}
 
         <div className="flex items-center justify-center">
@@ -1303,6 +1318,7 @@ const BestPersonGame: React.FC<BestPersonGameProps> = ({ onComplete }) => {
 
         <DuelCard
           contestant={rightContestant}
+          customImageSrc={rightContestant.id === EZOZA_ID ? specialImageSrc : undefined}
           onSelect={handleSelect}
           selectedId={selectedId}
           disabled={isLocked || (finalSingleChoice && !rightContestant.isEzoza)}
@@ -1334,5 +1350,3 @@ const BestPersonGame: React.FC<BestPersonGameProps> = ({ onComplete }) => {
 };
 
 export default BestPersonGame;
-
-

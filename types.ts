@@ -117,6 +117,7 @@ export interface AppConfig {
   partnerLastName: string;
   myName: string;
   specialContestantName: string;
+  specialContestantImage: string;
   campaignTitle: string;
 }
 

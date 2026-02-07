@@ -13,6 +13,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   partnerLastName: PARTNER_LAST_NAME,
   myName: MY_NAME,
   specialContestantName: PARTNER_FIRST_NAME,
+  specialContestantImage: '',
   campaignTitle: `${PARTNER_FIRST_NAME} uchun maxsus sahifa`,
 };
 
@@ -25,11 +26,42 @@ const sanitizeText = (value: unknown, fallback: string): string => {
   return trimmed.length > 0 ? trimmed : fallback;
 };
 
+const sanitizeImageSource = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('data:image/')) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return trimmed;
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+};
+
 export const normalizeConfig = (partial?: Partial<AppConfig>): AppConfig => {
   const partnerFirstName = sanitizeText(partial?.partnerFirstName, DEFAULT_APP_CONFIG.partnerFirstName);
   const partnerLastName = sanitizeText(partial?.partnerLastName, DEFAULT_APP_CONFIG.partnerLastName);
   const myName = sanitizeText(partial?.myName, DEFAULT_APP_CONFIG.myName);
   const specialContestantName = sanitizeText(partial?.specialContestantName, partnerFirstName);
+  const specialContestantImage = sanitizeImageSource(partial?.specialContestantImage);
   const campaignTitle = sanitizeText(partial?.campaignTitle, `${partnerFirstName} uchun maxsus sahifa`);
 
   return {
@@ -37,6 +69,7 @@ export const normalizeConfig = (partial?: Partial<AppConfig>): AppConfig => {
     partnerLastName,
     myName,
     specialContestantName,
+    specialContestantImage,
     campaignTitle,
   };
 };

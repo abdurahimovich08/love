@@ -17,6 +17,22 @@ import {
   normalizeConfig,
 } from '../services/runtimeConfig';
 
+const MAX_SPECIAL_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Image load failed'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Image load failed'));
+    reader.readAsDataURL(file);
+  });
+
 const formatDate = (iso?: string | null): string => {
   if (!iso) {
     return '-';
@@ -34,7 +50,9 @@ const CampaignStudio: React.FC = () => {
   const [partnerLastName, setPartnerLastName] = useState(DEFAULT_APP_CONFIG.partnerLastName);
   const [myName, setMyName] = useState(DEFAULT_APP_CONFIG.myName);
   const [specialContestantName, setSpecialContestantName] = useState(DEFAULT_APP_CONFIG.specialContestantName);
+  const [specialContestantImage, setSpecialContestantImage] = useState(DEFAULT_APP_CONFIG.specialContestantImage);
   const [campaignTitle, setCampaignTitle] = useState(DEFAULT_APP_CONFIG.campaignTitle);
+  const [specialImageHint, setSpecialImageHint] = useState('');
 
   const [isCreating, setIsCreating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
@@ -85,6 +103,7 @@ const CampaignStudio: React.FC = () => {
         partnerLastName,
         myName,
         specialContestantName,
+        specialContestantImage,
         campaignTitle,
       });
 
@@ -109,7 +128,39 @@ const CampaignStudio: React.FC = () => {
     } finally {
       setIsCreating(false);
     }
-  }, [campaignTitle, myName, partnerFirstName, partnerLastName, refreshCampaigns, refreshSessions, specialContestantName]);
+  }, [
+    campaignTitle,
+    myName,
+    partnerFirstName,
+    partnerLastName,
+    refreshCampaigns,
+    refreshSessions,
+    specialContestantImage,
+    specialContestantName,
+  ]);
+
+  const handleSpecialImageFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_SPECIAL_IMAGE_SIZE_BYTES) {
+      setSpecialImageHint('Rasm hajmi 2MB dan kichik bo\'lishi kerak.');
+      event.currentTarget.value = '';
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setSpecialContestantImage(dataUrl);
+      setSpecialImageHint('Rasm yuklandi. Endi link yaratishingiz mumkin.');
+    } catch {
+      setSpecialImageHint('Rasmni o\'qishda xatolik yuz berdi.');
+    } finally {
+      event.currentTarget.value = '';
+    }
+  }, []);
 
   const handleCopyLink = useCallback(async () => {
     if (!generatedLink) {
@@ -175,6 +226,54 @@ const CampaignStudio: React.FC = () => {
               className="w-full rounded-xl border border-love-200 bg-white/90 px-3 py-2 text-sm text-love-700 focus:outline-none focus:border-love-400"
             />
 
+            <label className="block text-xs text-love-600 font-medium">Maxsus personaj rasmi (URL yoki yuklash)</label>
+            <input
+              value={specialContestantImage}
+              onChange={(event) => {
+                setSpecialContestantImage(event.target.value);
+                setSpecialImageHint('');
+              }}
+              placeholder="https://... yoki /battle-images/your-image.jpg"
+              className="w-full rounded-xl border border-love-200 bg-white/90 px-3 py-2 text-sm text-love-700 focus:outline-none focus:border-love-400"
+            />
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 rounded-lg border border-love-200 px-3 py-1.5 text-xs text-love-600 hover:bg-love-50 cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    void handleSpecialImageFileChange(event);
+                  }}
+                />
+                Rasm yuklash
+              </label>
+              {specialContestantImage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSpecialContestantImage('');
+                    setSpecialImageHint('');
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-love-200 px-3 py-1.5 text-xs text-love-600 hover:bg-love-50"
+                >
+                  Rasmni olib tashlash
+                </button>
+              )}
+            </div>
+            {specialImageHint && <p className="text-[11px] text-love-500">{specialImageHint}</p>}
+            {specialContestantImage && (
+              <div className="rounded-xl border border-love-200 bg-white/80 p-2">
+                <div className="w-full aspect-[4/5] rounded-lg overflow-hidden bg-love-50">
+                  <img
+                    src={specialContestantImage}
+                    alt="Maxsus personaj preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+            )}
+
             <label className="block text-xs text-love-600 font-medium">Sizning ismingiz</label>
             <input
               value={myName}
@@ -207,6 +306,11 @@ const CampaignStudio: React.FC = () => {
                   ? 'Kampaniya linki (cross-device tracking).'
                   : 'Konfig linki (fallback, kampaniya IDsiz).'}
               </p>
+              {generatedLink.length > 3200 && (
+                <p className="text-[11px] text-amber-600">
+                  Link juda uzun bo\'ldi. Supabase yoqilgan holatda campaign linkdan foydalaning.
+                </p>
+              )}
               <p className="text-[11px] text-love-700 break-all">{generatedLink}</p>
               <div className="flex gap-2">
                 <button

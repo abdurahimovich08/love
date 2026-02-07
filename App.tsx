@@ -259,12 +259,14 @@ const App: React.FC = () => {
       partnerFirstName: runtimeConfig.partnerFirstName,
       partnerLastName: runtimeConfig.partnerLastName,
       specialContestantName: runtimeConfig.specialContestantName,
+      hasSpecialContestantImage: Boolean(runtimeConfig.specialContestantImage),
     });
   }, [
     campaignSlug,
     mode,
     runtimeConfig.partnerFirstName,
     runtimeConfig.partnerLastName,
+    runtimeConfig.specialContestantImage,
     runtimeConfig.specialContestantName,
     runtimeReady,
     runtimeSource,
@@ -312,6 +314,7 @@ const App: React.FC = () => {
         partnerFirstName: runtimeConfig.partnerFirstName,
         partnerLastName: runtimeConfig.partnerLastName,
         specialContestantName: runtimeConfig.specialContestantName,
+        hasSpecialContestantImage: Boolean(runtimeConfig.specialContestantImage),
       },
       results: resultsRef.current,
       finalStep: GameStep.SUCCESS,
@@ -325,7 +328,15 @@ const App: React.FC = () => {
     }).catch((error) => {
       console.warn('Session completion failed:', error);
     });
-  }, [campaignSlug, runtimeConfig.partnerFirstName, runtimeConfig.partnerLastName, runtimeConfig.specialContestantName, runtimeSource, trackEvent]);
+  }, [
+    campaignSlug,
+    runtimeConfig.partnerFirstName,
+    runtimeConfig.partnerLastName,
+    runtimeConfig.specialContestantImage,
+    runtimeConfig.specialContestantName,
+    runtimeSource,
+    trackEvent,
+  ]);
 
   useEffect(() => {
     if (currentStep === GameStep.SUCCESS) {
