@@ -21,7 +21,7 @@ Ikki usul bor:
 
 ## Tracking Storage
 
-App `campaigns`, `sessions`, `session_events` jadvallariga yozadi (agar Supabase yoqilgan bo'lsa).
+App `love_campaigns`, `love_sessions`, `love_session_events` jadvallariga yozadi (agar Supabase yoqilgan bo'lsa).
 Supabase bo'lmasa localStorage fallback ishlaydi.
 
 ### Environment

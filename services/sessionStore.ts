@@ -6,6 +6,11 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | und
 const CAMPAIGNS_KEY = 'love_app_campaigns_v1';
 const SESSIONS_KEY = 'love_app_sessions_v1';
 const EVENTS_KEY = 'love_app_session_events_v1';
+const REMOTE_TABLES = {
+  campaigns: 'love_campaigns',
+  sessions: 'love_sessions',
+  events: 'love_session_events',
+} as const;
 
 export const isRemoteStoreEnabled = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -211,7 +216,7 @@ export const createCampaign = async (input: CreateCampaignInput): Promise<Campai
 
   try {
     const rows = await remoteRequest<any[]>(
-      'campaigns?select=id,slug,title,owner_name,config,created_at',
+      `${REMOTE_TABLES.campaigns}?select=id,slug,title,owner_name,config,created_at`,
       {
         method: 'POST',
         headers: {
@@ -247,7 +252,7 @@ export const listCampaigns = async (): Promise<CampaignRecord[]> => {
 
   try {
     const rows = await remoteRequest<any[]>(
-      'campaigns?select=id,slug,title,owner_name,config,created_at&order=created_at.desc',
+      `${REMOTE_TABLES.campaigns}?select=id,slug,title,owner_name,config,created_at&order=created_at.desc`,
     );
     return rows.map(mapRemoteCampaign);
   } catch (error) {
@@ -268,7 +273,7 @@ export const getCampaignBySlug = async (slug: string): Promise<CampaignRecord | 
 
   try {
     const rows = await remoteRequest<any[]>(
-      `campaigns?select=id,slug,title,owner_name,config,created_at&slug=eq.${encodeURIComponent(safeSlug)}&limit=1`,
+      `${REMOTE_TABLES.campaigns}?select=id,slug,title,owner_name,config,created_at&slug=eq.${encodeURIComponent(safeSlug)}&limit=1`,
     );
     if (!rows.length) {
       return null;
@@ -305,7 +310,7 @@ export const createSession = async (input: CreateSessionInput): Promise<SessionR
 
   try {
     const rows = await remoteRequest<any[]>(
-      'sessions?select=id,campaign_slug,meta,summary,started_at,completed_at',
+      `${REMOTE_TABLES.sessions}?select=id,campaign_slug,meta,summary,started_at,completed_at`,
       {
         method: 'POST',
         headers: {
@@ -355,7 +360,7 @@ export const appendSessionEvent = async (input: AppendSessionEventInput): Promis
 
   try {
     await remoteRequest<any[]>(
-      'session_events',
+      REMOTE_TABLES.events,
       {
         method: 'POST',
         headers: {
@@ -400,7 +405,7 @@ export const completeSession = async (input: CompleteSessionInput): Promise<void
 
   try {
     await remoteRequest<any[]>(
-      `sessions?id=eq.${encodeURIComponent(input.sessionId)}`,
+      `${REMOTE_TABLES.sessions}?id=eq.${encodeURIComponent(input.sessionId)}`,
       {
         method: 'PATCH',
         headers: {
@@ -432,7 +437,7 @@ export const listSessionsByCampaign = async (campaignSlug: string): Promise<Sess
 
   try {
     const rows = await remoteRequest<any[]>(
-      `sessions?select=id,campaign_slug,meta,summary,started_at,completed_at&campaign_slug=eq.${encodeURIComponent(safeSlug)}&order=started_at.desc`,
+      `${REMOTE_TABLES.sessions}?select=id,campaign_slug,meta,summary,started_at,completed_at&campaign_slug=eq.${encodeURIComponent(safeSlug)}&order=started_at.desc`,
     );
     return rows.map(mapRemoteSession);
   } catch (error) {
@@ -465,10 +470,10 @@ export const getSessionWithEvents = async (sessionId: string): Promise<SessionWi
   try {
     const [sessionRows, eventRows] = await Promise.all([
       remoteRequest<any[]>(
-        `sessions?select=id,campaign_slug,meta,summary,started_at,completed_at&id=eq.${encodeURIComponent(safeSessionId)}&limit=1`,
+        `${REMOTE_TABLES.sessions}?select=id,campaign_slug,meta,summary,started_at,completed_at&id=eq.${encodeURIComponent(safeSessionId)}&limit=1`,
       ),
       remoteRequest<any[]>(
-        `session_events?select=id,session_id,event_type,step,payload,created_at&session_id=eq.${encodeURIComponent(safeSessionId)}&order=created_at.asc`,
+        `${REMOTE_TABLES.events}?select=id,session_id,event_type,step,payload,created_at&session_id=eq.${encodeURIComponent(safeSessionId)}&order=created_at.asc`,
       ),
     ]);
 
