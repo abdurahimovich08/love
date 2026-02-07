@@ -219,6 +219,30 @@ const finishCreatorFlow = async (ctx, state) => {
   );
 };
 
+const asRecord = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value;
+};
+
+const oneLine = (value, max = 180) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.length <= max) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, max - 1)}…`;
+};
+
 const formatSummary = (detail) => {
   if (!detail) {
     return 'Session topilmadi.';
@@ -234,37 +258,111 @@ const formatSummary = (detail) => {
     `\u2705 Tugagan: ${session.completedAt ? new Date(session.completedAt).toLocaleString() : 'Yo\'q'}`,
     `\u{1F4CD} Eventlar soni: ${events.length}`,
     '',
-    'Natijalar:',
+    'To\'liq natijalar:',
   ];
 
   if (results.nameGame) {
-    lines.push(`- Ism o\'yini: ${results.nameGame.firstName || '-'} ${results.nameGame.lastName || '-'}`);
-    lines.push(`  xato urinishlar: ${results.nameGame.wrongAttempts ?? 0}`);
+    lines.push('');
+    lines.push('1) Ism o\'yini');
+    lines.push(`- Topilgan ism: ${results.nameGame.firstName || '-'} ${results.nameGame.lastName || '-'}`);
+    lines.push(`- Xato urinishlar: ${results.nameGame.wrongAttempts ?? 0}`);
+    lines.push(`- Jami urinishlar: ${results.nameGame.totalAttempts ?? 0}`);
   }
 
   if (results.qualitiesGame) {
-    lines.push(`- Xarakter arxetipi: ${results.qualitiesGame.archetypeName || '-'}`);
+    const qualities = results.qualitiesGame;
+    const traitScores = asRecord(qualities.traitScores);
+    const answers = asRecord(qualities.answers);
+    const selectedChoices = asRecord(qualities.selectedChoices);
+    const diaryEntries = asRecord(qualities.diaryEntries);
+    const questionKeys = Array.from(
+      new Set([...Object.keys(answers), ...Object.keys(selectedChoices), ...Object.keys(diaryEntries)]),
+    ).sort((a, b) => Number(a) - Number(b));
+
+    lines.push('');
+    lines.push('2) Xarakter o\'yini');
+    lines.push(`- Arxetip: ${qualities.archetypeName || '-'}`);
+    if (Object.keys(traitScores).length) {
+      const scoreLine = Object.entries(traitScores)
+        .sort(([, a], [, b]) => Number(b) - Number(a))
+        .map(([trait, score]) => `${trait}:${score}`)
+        .join(', ');
+      lines.push(`- Ballar: ${scoreLine}`);
+    }
+
+    if (questionKeys.length) {
+      lines.push('- Tanlangan variantlar:');
+      questionKeys.forEach((key) => {
+        const questionNo = Number(key) + 1;
+        const choiceId = selectedChoices[key] ?? '-';
+        const trait = answers[key] ?? '-';
+        lines.push(`  ${questionNo}) tanlov=${choiceId}, trait=${trait}`);
+
+        const diary = oneLine(diaryEntries[key] ?? '', 220);
+        if (diary) {
+          lines.push(`     yozuv: "${diary}"`);
+        }
+      });
+    }
   }
 
   if (results.dreamsGame?.wishes?.length) {
-    lines.push(`- Tilaklar: ${results.dreamsGame.wishes.length} ta`);
+    lines.push('');
+    lines.push('3) Tilaklar');
+    results.dreamsGame.wishes.forEach((wish, index) => {
+      const title = wish.title || wish.wishId || `Tilak ${index + 1}`;
+      const text = oneLine(wish.text || '', 220) || '(matn yozilmagan)';
+      lines.push(`  ${index + 1}) ${title}: ${text}`);
+    });
   }
 
   if (results.favoritesGame?.favorites?.length) {
-    lines.push(`- Sevimlilar: ${results.favoritesGame.favorites.length} ta`);
+    lines.push('');
+    lines.push('4) Sevimlilar');
+    results.favoritesGame.favorites.forEach((item, index) => {
+      const categoryName = item.categoryName || item.categoryId || `Kategoriya ${index + 1}`;
+      const value = oneLine(item.value || '', 220) || '(yozilmagan)';
+      lines.push(`  ${index + 1}) ${categoryName}: ${value}`);
+    });
   }
 
   if (results.bestPersonGame) {
-    lines.push(`- Final g\'olib: ${results.bestPersonGame.winnerName || '-'}`);
-    lines.push(`  duel soni: ${results.bestPersonGame.totalDuels ?? 0}`);
+    const battle = results.bestPersonGame;
+    const duelHistory = Array.isArray(battle.duelHistory) ? battle.duelHistory : [];
+    const duelEvents = events.filter((event) => event.eventType === 'battle_duel_selected');
+
+    lines.push('');
+    lines.push('5) Battle natijalari');
+    lines.push(`- Final g\'olib: ${battle.winnerName || battle.winnerId || '-'}`);
+    lines.push(`- Duel soni: ${battle.totalDuels ?? duelHistory.length}`);
+    lines.push(`- Finalda rad etishlar: ${battle.finalMissCount ?? 0}`);
+
+    if (duelHistory.length) {
+      lines.push('- Duel tarixchasi:');
+      duelHistory.forEach((duel, index) => {
+        const eventPayload = asRecord(duelEvents[index]?.payload);
+        const pickedName = oneLine(eventPayload.pickedName || '', 80);
+        const winnerName = oneLine(eventPayload.winnerName || '', 80);
+        const pickedText = pickedName ? `${pickedName} (${duel.pickedId})` : duel.pickedId;
+        const winnerText = winnerName ? `${winnerName} (${duel.winnerId})` : duel.winnerId;
+        lines.push(
+          `  ${index + 1}) [${duel.phase}] ${duel.leftId} vs ${duel.rightId} -> tanlov: ${pickedText}, g'olib: ${winnerText}`,
+        );
+        if (duel.interventionStage) {
+          lines.push(`     intervention bosqichi: ${duel.interventionStage}`);
+        }
+      });
+    }
   }
 
   if (results.proposal) {
-    lines.push(`- Taklif: ${results.proposal.accepted ? 'Ha' : 'Yo\'q'}`);
-    lines.push(`  yo\'q bosishlar: ${results.proposal.noClickCount ?? 0}`);
+    lines.push('');
+    lines.push('6) Yakuniy taklif');
+    lines.push(`- Javob: ${results.proposal.accepted ? 'Ha' : 'Yo\'q'}`);
+    lines.push(`- "Yo\'q" bosishlar: ${results.proposal.noClickCount ?? 0}`);
   }
 
-  if (lines[lines.length - 1] === 'Natijalar:') {
+  if (lines[lines.length - 1] === 'To\'liq natijalar:') {
     lines.push('- Hali summary yozilmagan.');
   }
 
