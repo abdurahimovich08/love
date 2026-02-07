@@ -30,6 +30,7 @@ const WEBHOOK_BASE_URL = (process.env.BOT_WEBHOOK_URL || process.env.RENDER_EXTE
 const WEBHOOK_PATH = process.env.BOT_WEBHOOK_PATH || `/telegram/webhook/${BOT_TOKEN}`;
 let BOT_USERNAME = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
 const MAX_SPECIAL_IMAGE_BYTES = Number(process.env.MAX_SPECIAL_IMAGE_BYTES || 1200000);
+const TELEGRAM_WEBAPP_BUTTON_TEXT = process.env.TELEGRAM_WEBAPP_BUTTON_TEXT || 'Love App';
 
 if (!BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN kiritilmagan.');
@@ -584,6 +585,16 @@ const setupBotCommands = async () => {
   ]);
 };
 
+const setupChatMenuButton = async () => {
+  await bot.telegram.setChatMenuButton({
+    menuButton: {
+      type: 'web_app',
+      text: TELEGRAM_WEBAPP_BUTTON_TEXT,
+      web_app: { url: WEB_APP_URL },
+    },
+  });
+};
+
 const launchPolling = async () => {
   await bot.launch();
   console.log('[bot] mode: polling');
@@ -657,6 +668,11 @@ const boot = async () => {
   await checkConnection();
   setupHandlers();
   await setupBotCommands();
+  try {
+    await setupChatMenuButton();
+  } catch (error) {
+    console.warn('[bot] menu button setup failed. Check BotFather /setdomain and Web App URL.', error);
+  }
 
   if (IS_WEBHOOK_MODE) {
     await launchWebhook();

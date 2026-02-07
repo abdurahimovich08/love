@@ -58,6 +58,7 @@ Bot uchun quyidagi env lar kerak:
 ```env
 TELEGRAM_BOT_TOKEN=...
 WEB_APP_URL=https://your-app.vercel.app
+TELEGRAM_WEBAPP_BUTTON_TEXT=Love App
 BOT_MODE=polling
 MAX_SPECIAL_IMAGE_BYTES=1200000
 
@@ -99,3 +100,9 @@ Bot buyruqlari:
 - `/campaigns`
 - `/results`
 - `/cancel`
+
+### Telegram Web App ochilmasa
+
+1. BotFatherda domenni ulang: `/setdomain` -> `your-app.vercel.app`
+2. Bot menu button Web App URL `https://...` ekanini tekshiring
+3. Render deploydan keyin botga `/start` yuboring (menu button qayta o'rnatiladi)
