@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import dotenv from 'dotenv';
 import { createServer } from 'node:http';
 import { Telegraf } from 'telegraf';
 import {
@@ -12,9 +12,14 @@ import {
 import {
   campaignCreatedKeyboard,
   campaignsKeyboard,
+  incomingCampaignKeyboard,
   mainMenuKeyboard,
   sessionsKeyboard,
 } from './lib/telegramUi.mjs';
+
+dotenv.config({ path: '.env.bot' });
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const WEB_APP_URL = (process.env.WEB_APP_URL || process.env.VERCEL_PUBLIC_URL || '').replace(/\/$/, '');
@@ -23,6 +28,7 @@ const IS_WEBHOOK_MODE = BOT_MODE === 'webhook';
 const PORT = Number(process.env.PORT || 3000);
 const WEBHOOK_BASE_URL = (process.env.BOT_WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '');
 const WEBHOOK_PATH = process.env.BOT_WEBHOOK_PATH || `/telegram/webhook/${BOT_TOKEN}`;
+let BOT_USERNAME = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
 
 if (!BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN kiritilmagan.');
@@ -39,7 +45,67 @@ if (IS_WEBHOOK_MODE && !WEBHOOK_BASE_URL) {
 const bot = new Telegraf(BOT_TOKEN);
 const creatorState = new Map();
 
+const START_INFO = [
+  '\u{1F49E} Romantik Creator Bot',
+  '',
+  'Bot nima qiladi:',
+  '1) Sevgiga mos sahifa (ulashish) yaratadi',
+  '2) Sizga ulashish linkini beradi',
+  '3) O\'ynaganlarning natijasini ko\'rsatadi',
+  '',
+  'Boshlash uchun: \u{1F48C} Sevgini ulashing tugmasini bosing yoki /create yozing.',
+].join('\n');
+
 const buildCampaignLink = (slug) => `${WEB_APP_URL}/?campaign=${encodeURIComponent(slug)}`;
+
+const buildBotStartLink = (slug) => {
+  if (!BOT_USERNAME) {
+    return null;
+  }
+  const payload = `campaign_${slug}`;
+  return `https://t.me/${BOT_USERNAME}?start=${encodeURIComponent(payload)}`;
+};
+
+const buildShareLinks = (slug) => ({
+  campaignUrl: buildCampaignLink(slug),
+  botStartUrl: buildBotStartLink(slug),
+});
+
+const getStartPayload = (ctx) => {
+  if (typeof ctx.startPayload === 'string' && ctx.startPayload.trim()) {
+    return ctx.startPayload.trim();
+  }
+
+  const text = ctx.message?.text || '';
+  const parts = text.trim().split(/\s+/);
+  if (parts.length < 2) {
+    return '';
+  }
+
+  const rawPayload = parts.slice(1).join(' ').trim();
+  if (!rawPayload) {
+    return '';
+  }
+
+  try {
+    return decodeURIComponent(rawPayload);
+  } catch {
+    return rawPayload;
+  }
+};
+
+const parseCampaignSlugFromStartPayload = (payload) => {
+  if (!payload || !payload.startsWith('campaign_')) {
+    return null;
+  }
+
+  const slug = payload.slice('campaign_'.length).trim().toLowerCase();
+  if (!slug) {
+    return null;
+  }
+
+  return /^[a-z0-9-]+$/.test(slug) ? slug : null;
+};
 
 const resetCreator = (chatId) => {
   creatorState.delete(chatId);
@@ -69,10 +135,10 @@ const formatSummary = (detail) => {
   const results = summary.results || {};
 
   const lines = [
-    `🧾 Session: ${session.id}`,
-    `🕒 Boshlangan: ${new Date(session.startedAt).toLocaleString()}`,
-    `✅ Tugagan: ${session.completedAt ? new Date(session.completedAt).toLocaleString() : 'Yo\'q'}`,
-    `📍 Eventlar soni: ${events.length}`,
+    `\u{1F9FE} Session: ${session.id}`,
+    `\u{1F552} Boshlangan: ${new Date(session.startedAt).toLocaleString()}`,
+    `\u2705 Tugagan: ${session.completedAt ? new Date(session.completedAt).toLocaleString() : 'Yo\'q'}`,
+    `\u{1F4CD} Eventlar soni: ${events.length}`,
     '',
     'Natijalar:',
   ];
@@ -113,21 +179,41 @@ const formatSummary = (detail) => {
 
 const setupHandlers = () => {
   bot.start(async (ctx) => {
-    await ctx.reply(
-      "💘 Premium Love Bot\n\nBu bot orqali campaign yaratish, link ulashish va natijalarni ko\'rish mumkin.",
-      mainMenuKeyboard(),
-    );
+    const payload = getStartPayload(ctx);
+    const campaignSlug = parseCampaignSlugFromStartPayload(payload);
+
+    if (campaignSlug) {
+      const { campaignUrl } = buildShareLinks(campaignSlug);
+      await ctx.reply(
+        [
+          '\u{1F48C} Sizga maxsus romantik ulashish yuborilgan!',
+          `\u{1F194} Ulashish kodi: ${campaignSlug}`,
+          '',
+          'Quyidagi tugma orqali kampaniyani oching:',
+        ].join('\n'),
+        incomingCampaignKeyboard(campaignUrl),
+      );
+      return;
+    }
+
+    await ctx.reply(START_INFO, mainMenuKeyboard());
   });
 
   bot.command('help', async (ctx) => {
     await ctx.reply(
       [
+        'Ish tartibi:',
+        '1) Sevgiga mos ulashish yaratasiz',
+        '2) Bot sizga ulashish linkini beradi',
+        '3) Qabul qilgan odam o\'ynaydi',
+        '4) Siz natijani shu botdan ko\'rasiz',
+        '',
         'Buyruqlar:',
         '/start - asosiy menyu',
-        '/create - yangi campaign yaratish',
-        '/campaigns - campaignlarim',
+        '/create - sevgini ulashishni yaratish',
+        '/campaigns - ulashishlarim',
         '/results - natijalarni ko\'rish',
-        '/cancel - joriy creator jarayonini bekor qilish',
+        '/cancel - joriy jarayonni bekor qilish',
       ].join('\n'),
       mainMenuKeyboard(),
     );
@@ -146,22 +232,22 @@ const setupHandlers = () => {
     const chatId = ctx.chat.id;
     const campaigns = await listCampaignsByOwner(chatId);
     if (!campaigns.length) {
-      await ctx.reply('Sizda hali campaign yo\'q. /create bilan boshlang.', mainMenuKeyboard());
+      await ctx.reply('Sizda hali ulashish yo\'q. /create bilan boshlang.', mainMenuKeyboard());
       return;
     }
 
-    await ctx.reply('Campaignlar ro\'yxati:', campaignsKeyboard(campaigns, 'open'));
+    await ctx.reply('\u{1F4E4} Ulashishlar ro\'yxati:', campaignsKeyboard(campaigns, 'open'));
   });
 
   bot.command('results', async (ctx) => {
     const chatId = ctx.chat.id;
     const campaigns = await listCampaignsByOwner(chatId);
     if (!campaigns.length) {
-      await ctx.reply('Natija ko\'rish uchun avval campaign yarating: /create', mainMenuKeyboard());
+      await ctx.reply('Natija ko\'rish uchun avval ulashish yarating: /create', mainMenuKeyboard());
       return;
     }
 
-    await ctx.reply('Qaysi campaign natijalarini ko\'rmoqchisiz?', campaignsKeyboard(campaigns, 'results'));
+    await ctx.reply('Qaysi ulashish natijalarini ko\'rmoqchisiz?', campaignsKeyboard(campaigns, 'results'));
   });
 
   bot.action('menu:create', async (ctx) => {
@@ -174,32 +260,34 @@ const setupHandlers = () => {
     const chatId = ctx.chat.id;
     const campaigns = await listCampaignsByOwner(chatId);
     if (!campaigns.length) {
-      await ctx.reply('Sizda hali campaign yo\'q. /create bilan boshlang.', mainMenuKeyboard());
+      await ctx.reply('Sizda hali ulashish yo\'q. /create bilan boshlang.', mainMenuKeyboard());
       return;
     }
 
-    await ctx.reply('Campaignlar ro\'yxati:', campaignsKeyboard(campaigns, 'open'));
+    await ctx.reply('\u{1F4E4} Ulashishlar ro\'yxati:', campaignsKeyboard(campaigns, 'open'));
   });
 
   bot.action('menu:results', async (ctx) => {
     await ctx.answerCbQuery();
     const campaigns = await listCampaignsByOwner(ctx.chat.id);
     if (!campaigns.length) {
-      await ctx.reply('Sizda hali campaign yo\'q. /create bilan boshlang.', mainMenuKeyboard());
+      await ctx.reply('Sizda hali ulashish yo\'q. /create bilan boshlang.', mainMenuKeyboard());
       return;
     }
 
-    await ctx.reply('Qaysi campaign natijalarini ko\'rmoqchisiz?', campaignsKeyboard(campaigns, 'results'));
+    await ctx.reply('Qaysi ulashish natijalarini ko\'rmoqchisiz?', campaignsKeyboard(campaigns, 'results'));
   });
 
   bot.action('menu:help', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.reply(
       [
-        'Ish tartibi:',
-        '1) Campaign yarating',
-        '2) Bot bergan linkni yuboring',
-        '3) Foydalanuvchi o\'ynagach, natijani shu botdan ko\'ring',
+        'Premium ishlash tartibi:',
+        '1) Ulashish yarating',
+        '2) Telegram deep-linkni ulashing',
+        '3) Qabul qiluvchi linkni bossa botga keladi',
+        '4) Bot uni aniq o\'sha ulashish sahifasiga yo\'naltiradi',
+        '5) Natijani /results orqali kuzatasiz',
         '',
         'Buyruqlar: /create /campaigns /results /cancel',
       ].join('\n'),
@@ -215,8 +303,16 @@ const setupHandlers = () => {
   bot.action(/campaign:open:(.+)/, async (ctx) => {
     await ctx.answerCbQuery();
     const slug = ctx.match[1];
-    const link = buildCampaignLink(slug);
-    await ctx.reply(`🔗 Campaign link:\n${link}`, campaignCreatedKeyboard(link));
+    const links = buildShareLinks(slug);
+
+    await ctx.reply(
+      [
+        '\u{1F49E} Ulashish havolalari tayyor!',
+        `\u{1F916} Telegram orqali ochish: ${links.botStartUrl || '(bot username aniqlanmadi)'}`,
+        `\u{1F310} To\'g\'ridan-to\'g\'ri ochish: ${links.campaignUrl}`,
+      ].join('\n'),
+      campaignCreatedKeyboard(links),
+    );
   });
 
   bot.action(/results:campaign:(.+)/, async (ctx) => {
@@ -225,11 +321,11 @@ const setupHandlers = () => {
     const sessions = await listSessionsByCampaign(slug);
 
     if (!sessions.length) {
-      await ctx.reply('Bu campaign bo\'yicha hali session yo\'q.', mainMenuKeyboard());
+      await ctx.reply('Bu ulashish bo\'yicha hali session yo\'q.', mainMenuKeyboard());
       return;
     }
 
-    await ctx.reply(`Campaign: ${slug}\nSessionlar:`, sessionsKeyboard(sessions));
+    await ctx.reply(`Ulashish: ${slug}\nSessionlar:`, sessionsKeyboard(sessions));
   });
 
   bot.action(/results:session:(.+)/, async (ctx) => {
@@ -282,12 +378,13 @@ const setupHandlers = () => {
       state.data.specialContestantName = text === '-' ? state.data.partnerFirstName : text;
       state.step = 'campaign_title';
       creatorState.set(chatId, state);
-      await ctx.reply('4/4. Campaign nomini kiriting:');
+      await ctx.reply('4/4. Ulashish nomini kiriting (masalan: Sevgini ulashing \u{1F496}). "-" yozsangiz avtomatik nom beriladi:');
       return;
     }
 
     if (state.step === 'campaign_title') {
-      state.data.campaignTitle = text;
+      const defaultTitle = `Sevgini ulashing - ${state.data.partnerFirstName}`;
+      state.data.campaignTitle = text === '-' ? defaultTitle : text;
 
       const config = {
         partnerFirstName: state.data.partnerFirstName,
@@ -307,16 +404,17 @@ const setupHandlers = () => {
 
       resetCreator(chatId);
 
-      const campaignUrl = buildCampaignLink(created.slug);
+      const links = buildShareLinks(created.slug);
       await ctx.reply(
         [
-          '✅ Campaign yaratildi!',
-          `📌 Nomi: ${created.title}`,
-          `🆔 Slug: ${created.slug}`,
+          '\u2705 Ulashish yaratildi!',
+          `\u{1F496} Nomi: ${created.title}`,
+          `\u{1F194} Slug: ${created.slug}`,
           '',
-          `🔗 Link: ${campaignUrl}`,
+          `\u{1F916} Telegram havola: ${links.botStartUrl || '(bot username aniqlanmadi)'}`,
+          `\u{1F310} Web havola: ${links.campaignUrl}`,
         ].join('\n'),
-        campaignCreatedKeyboard(campaignUrl),
+        campaignCreatedKeyboard(links),
       );
     }
   });
@@ -329,9 +427,9 @@ const setupHandlers = () => {
 
 const setupBotCommands = async () => {
   await bot.telegram.setMyCommands([
-    { command: 'start', description: 'Asosiy menyu' },
-    { command: 'create', description: 'Yangi campaign yaratish' },
-    { command: 'campaigns', description: 'Campaignlarim' },
+    { command: 'start', description: 'Bot tavsifi va menyu' },
+    { command: 'create', description: 'Sevgini ulashish yaratish' },
+    { command: 'campaigns', description: 'Ulashishlarim' },
     { command: 'results', description: 'Natijalarni ko\'rish' },
     { command: 'cancel', description: 'Joriy jarayonni bekor qilish' },
   ]);
@@ -374,7 +472,9 @@ const launchWebhook = async () => {
     console.log(`[bot] stopping: ${signal}`);
     try {
       await bot.telegram.deleteWebhook();
-    } catch {}
+    } catch {
+      // noop
+    }
     server.close(() => {
       process.exit(0);
     });
@@ -398,6 +498,12 @@ const boot = async () => {
   console.log('[bot] supabase:', config.SUPABASE_URL || '(missing)');
   console.log('[bot] tables:', config.tables);
   console.log('[bot] web app:', WEB_APP_URL);
+
+  const me = await bot.telegram.getMe();
+  if (!BOT_USERNAME && me?.username) {
+    BOT_USERNAME = me.username;
+  }
+  console.log('[bot] username:', BOT_USERNAME ? `@${BOT_USERNAME}` : '(missing)');
 
   await checkConnection();
   setupHandlers();
