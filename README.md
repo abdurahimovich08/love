@@ -11,6 +11,7 @@ Vite + React loyiha. Endi app ikki yirik imkoniyatga ega:
 2. `npm run dev`
 3. Odatdagi o'yin: `http://localhost:5173`
 4. Creator Studio: `http://localhost:5173?mode=studio`
+5. Admin Panel: `http://localhost:5173?mode=admin&key=YOUR_KEY`
 
 ## Dynamic Config
 
@@ -31,6 +32,7 @@ Supabase bo'lmasa localStorage fallback ishlaydi.
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+VITE_ADMIN_PANEL_KEY=your_private_admin_key
 ```
 
 Schema uchun: `docs/supabase-schema.sql`
@@ -41,6 +43,17 @@ Schema uchun: `docs/supabase-schema.sql`
 - share link chiqarish
 - kampaniya sessionlarini ko'rish
 - session summary va event loglarni ko'rish
+
+## Admin Panel
+
+- barcha userlar yaratgan campaign/ulashishlarni ko'rish
+- barcha sessionlarni ko'rish (all yoki campaign bo'yicha)
+- session summary va event loglarni to'liq ko'rish
+
+Kirish:
+
+- `?mode=admin&key=YOUR_KEY`
+- `YOUR_KEY` = `.env.local` dagi `VITE_ADMIN_PANEL_KEY`
 
 ## Telegram Bot
 

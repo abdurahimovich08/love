@@ -448,6 +448,22 @@ export const listSessionsByCampaign = async (campaignSlug: string): Promise<Sess
   }
 };
 
+export const listSessions = async (): Promise<SessionRecord[]> => {
+  if (!isRemoteStoreEnabled) {
+    return getLocalSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  try {
+    const rows = await remoteRequest<any[]>(
+      `${REMOTE_TABLES.sessions}?select=id,campaign_slug,meta,summary,started_at,completed_at&order=started_at.desc`,
+    );
+    return rows.map(mapRemoteSession);
+  } catch (error) {
+    console.warn('Remote global session list failed, reading local cache:', error);
+    return getLocalSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+};
+
 export const getSessionWithEvents = async (sessionId: string): Promise<SessionWithEvents | null> => {
   const safeSessionId = sessionId.trim();
   if (!safeSessionId) {

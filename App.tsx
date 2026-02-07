@@ -19,13 +19,21 @@ import BestPersonGame from './components/BestPersonGame';
 import Proposal from './components/Proposal';
 import Success from './components/Success';
 import CampaignStudio from './components/CampaignStudio';
+import AdminPanel from './components/AdminPanel';
 import { AppRuntimeProvider } from './context/AppRuntimeContext';
-import { DEFAULT_APP_CONFIG, isStudioModeSearch, resolveRuntimeConfig } from './services/runtimeConfig';
+import {
+  DEFAULT_APP_CONFIG,
+  getAdminKeyFromSearch,
+  isAdminModeSearch,
+  isStudioModeSearch,
+  resolveRuntimeConfig,
+} from './services/runtimeConfig';
 import { appendSessionEvent, completeSession, createSession } from './services/sessionStore';
 
 const tg = window.Telegram?.WebApp;
+const ADMIN_PANEL_KEY = (import.meta.env.VITE_ADMIN_PANEL_KEY as string | undefined)?.trim() || '';
 
-type AppMode = 'play' | 'studio';
+type AppMode = 'play' | 'studio' | 'admin';
 
 interface QueuedEvent {
   eventType: string;
@@ -93,6 +101,7 @@ const STEPS_ORDER = [
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>('play');
+  const [isAdminAuthorized, setIsAdminAuthorized] = useState(true);
   const [runtimeReady, setRuntimeReady] = useState(false);
   const [runtimeSource, setRuntimeSource] = useState<'default' | 'query' | 'campaign'>('default');
   const [campaignSlug, setCampaignSlug] = useState<string | null>(null);
@@ -133,6 +142,19 @@ const App: React.FC = () => {
         }
 
         setMode('studio');
+        setRuntimeReady(true);
+        return;
+      }
+
+      if (isAdminModeSearch(search)) {
+        if (!active) {
+          return;
+        }
+
+        const providedKey = getAdminKeyFromSearch(search);
+        const authorized = !ADMIN_PANEL_KEY || providedKey === ADMIN_PANEL_KEY;
+        setIsAdminAuthorized(authorized);
+        setMode('admin');
         setRuntimeReady(true);
         return;
       }
@@ -448,6 +470,10 @@ const App: React.FC = () => {
 
   if (mode === 'studio') {
     return <CampaignStudio />;
+  }
+
+  if (mode === 'admin') {
+    return <AdminPanel isAuthorized={isAdminAuthorized} />;
   }
 
   return (

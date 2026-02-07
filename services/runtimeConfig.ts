@@ -116,6 +116,20 @@ export const isStudioModeSearch = (search: string): boolean => {
   return mode === 'studio' || admin === '1' || admin === 'true' || studio === '1' || studio === 'true';
 };
 
+export const isAdminModeSearch = (search: string): boolean => {
+  const params = new URLSearchParams(search);
+  const mode = (params.get('mode') ?? '').toLowerCase();
+  const panel = (params.get('panel') ?? '').toLowerCase();
+  const dashboard = (params.get('dashboard') ?? '').toLowerCase();
+
+  return mode === 'admin' || panel === 'admin' || dashboard === 'admin';
+};
+
+export const getAdminKeyFromSearch = (search: string): string => {
+  const params = new URLSearchParams(search);
+  return (params.get('key') ?? params.get('adminKey') ?? '').trim();
+};
+
 export const resolveRuntimeConfig = async (search: string): Promise<ResolvedRuntimeConfig> => {
   const params = new URLSearchParams(search);
   const campaignSlug = params.get('campaign');
